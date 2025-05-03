@@ -7,4 +7,5 @@ python-dotenv
 gunicorn
 beautifulsoup4
 playwright
+gspread
 
