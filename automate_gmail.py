@@ -1,71 +1,61 @@
 import os
-import time
-import json
 import asyncio
 import base64
-import logging
 import re
 
-from bs4 import BeautifulSoup
-from flask import Flask, request
+from google.auth.transport.requests import Request
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from playwright.async_api import async_playwright
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from bs4 import BeautifulSoup
 
+# If modifying these SCOPES, delete the token.json file.
 SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
 
 def authenticate_gmail():
-    creds_json = os.environ['GOOGLE_CREDENTIALS_JSON']
-    creds_dict = json.loads(creds_json)
-
-    # Replace escaped newlines with actual newlines for private_key
-    creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
-
-    credentials = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scopes=SCOPES)
-    return build('gmail', 'v1', credentials=credentials)
+    creds = None
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    # If there are no (valid) credentials, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_console()  # Use run_local_server() if running locally with a browser
+        # Save the credentials for the next run
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+    service = build('gmail', 'v1', credentials=creds)
+    return service
 
 async def get_unsubscribe_links(service):
     results = service.users().messages().list(userId='me', q="unsubscribe", maxResults=10).execute()
     messages = results.get('messages', [])
-    unsubscribe_links = []
+    links = []
 
-    for message in messages:
-        msg = service.users().messages().get(userId='me', id=message['id'], format='raw').execute()
-        raw_msg = base64.urlsafe_b64decode(msg['raw'].encode('ASCII'))
-        soup = BeautifulSoup(raw_msg, 'html.parser')
-
-        links = soup.find_all('a')
-        for link in links:
-            href = link.get('href')
-            if href and 'unsubscribe' in href.lower():
-                unsubscribe_links.append(href)
-
-    return list(set(unsubscribe_links))
-
-async def click_links(links):
-    async with async_playwright() as p:
-        browser = await p.chromium.launch()
-        context = await browser.new_context()
-        page = await context.new_page()
-
-        for link in links:
-            try:
-                await page.goto(link, timeout=15000)
-                await asyncio.sleep(2)
-            except Exception as e:
-                print(f"Failed to visit {link}: {e}")
-
-        await browser.close()
-
-def main():
-    asyncio.run(run())
+    for msg in messages:
+        msg_data = service.users().messages().get(userId='me', id=msg['id'], format='raw').execute()
+        msg_raw = base64.urlsafe_b64decode(msg_data['raw'].encode('ASCII'))
+        soup = BeautifulSoup(msg_raw, "html.parser")
+        found = soup.find_all('a', href=True)
+        for a in found:
+            if 'unsubscribe' in a['href'].lower():
+                links.append(a['href'])
+                break
+    return links
 
 async def run():
     service = authenticate_gmail()
     links = await get_unsubscribe_links(service)
-    await click_links(links)
+    print("Found unsubscribe links:")
+    for link in links:
+        print(link)
+
+def main():
+    asyncio.run(run())
 
 if __name__ == '__main__':
     main()
+
 
