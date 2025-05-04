@@ -1,5 +1,6 @@
 from flask import Flask, render_template_string
 import automate_gmail
+import traceback
 
 app = Flask(__name__)
 
@@ -19,12 +20,14 @@ def run_unsubscribe():
     except Exception as e:
         return render_template_string(f"""
             <div style="color: red; font-weight: bold;">
-                ❌ An error occurred:<br><pre>{str(e)}</pre>
+                ❌ An error occurred:<br>
+                <pre>{traceback.format_exc()}</pre>
             </div>
         """), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
 
 
 
