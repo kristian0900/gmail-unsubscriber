@@ -1,31 +1,25 @@
-from flask import Flask, render_template, redirect, url_for
-import automate_gmail
+from flask import Flask
+from automate_gmail import authenticate_gmail
 
 app = Flask(__name__)
 
-@app.route("/")
+@app.route('/')
 def index():
-    return render_template("index.html")
-
-@app.route("/run-unsubscriber")
-def run_unsubscriber():
-    try:
-        automate_gmail.run_automation()
-        return "Unsubscribe process completed successfully!"
-    except Exception as e:
-        return f"Error occurred: {str(e)}"
-
-if __name__ == "__main__":
-    app.run(debug=True)
+    return "Welcome to the Gmail Unsubscriber Tool."
 
 @app.route('/test-auth')
 def test_auth():
     try:
-        from automate_gmail import authenticate_gmail
         service = authenticate_gmail()
-        profile = service.users().getProfile(userId='me').execute()
-        return f"✅ Auth Success! Gmail address: {profile['emailAddress']}"
+        return "✅ Gmail service authenticated successfully."
     except Exception as e:
-        return f"❌ Auth Failed: {str(e)}", 500
+        return f"❌ Auth failed: {e}"
+
+@app.route('/run-unsubscribe', methods=['POST'])
+def run_unsubscribe():
+    import automate_gmail
+    automate_gmail.main()
+    return 'Unsubscribe tool run successfully.'
+
 
 
