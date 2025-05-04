@@ -1,5 +1,5 @@
-from flask import Flask
-from automate_gmail import authenticate_gmail
+from flask import Flask, render_template_string
+import automate_gmail
 
 app = Flask(__name__)
 
@@ -7,19 +7,25 @@ app = Flask(__name__)
 def index():
     return "Welcome to the Gmail Unsubscriber Tool."
 
-@app.route('/test-auth')
-def test_auth():
-    try:
-        service = authenticate_gmail()
-        return "✅ Gmail service authenticated successfully."
-    except Exception as e:
-        return f"❌ Auth failed: {e}"
-
-@app.route('/run-unsubscribe', methods=['POST'])
+@app.route('/run-unsubscribe', methods=['GET'])
 def run_unsubscribe():
-    import automate_gmail
-    automate_gmail.main()
-    return 'Unsubscribe tool run successfully.'
+    try:
+        automate_gmail.main()
+        return render_template_string("""
+            <div style="color: limegreen; font-weight: bold;">
+                ✅ Gmail unsubscribe automation completed successfully.
+            </div>
+        """)
+    except Exception as e:
+        return render_template_string(f"""
+            <div style="color: red; font-weight: bold;">
+                ❌ An error occurred:<br><pre>{str(e)}</pre>
+            </div>
+        """), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+
 
 
 
